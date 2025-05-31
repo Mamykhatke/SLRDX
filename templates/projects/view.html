@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} - SLRD Project Management{% endblock %}
+{% block page_title %}{{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="project-details">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Project Info -->
+            <div class="content-card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3>Project Details</h3>
+                            <span class="status-badge status-{{ project.status.lower().replace(' ', '-') }}">
+                                {{ project.status }}
+                            </span>
+                        </div>
+                        {% if current_user.role in ['Admin', 'Manager'] and project.created_by_id == current_user.id %}
+                        <a href="{{ url_for('edit_project', project_id=project.id) }}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit"></i> Edit Project
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="project-info">
+                    <p class="description">{{ project.description or 'No description provided.' }}</p>
+                    
+                    <div class="project-meta-grid">
+                        <div class="meta-item">
+                            <label>Created by:</label>
+                            <span>{{ project.creator.username }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <label>Created on:</label>
+                            <span>{{ project.created_at.strftime('%B %d, %Y') }}</span>
+                        </div>
+                        {% if project.deadline %}
+                        <div class="meta-item">
+                            <label>Deadline:</label>
+                            <span>{{ project.deadline.strftime('%B %d, %Y') }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="meta-item">
+                            <label>Progress:</label>
+                            <div class="progress-container">
+                                <span>{{ project.progress }}%</span>
+                                <div class="progress">
+                                    <div class="progress-bar" style="width: {{ project.progress }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tasks Overview -->
+            <div class="content-card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3>Tasks Overview</h3>
+                        {% if current_user.role in ['Admin', 'Manager'] %}
+                        <a href="{{ url_for('create_task') }}?project_id={{ project.id }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> New Task
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="tasks-list">
+                    {% for task in tasks %}
+                    <div class="task-item">
+                        <div class="task-content">
+                            <h5><a href="{{ url_for('view_task', task_id=task.id) }}">{{ task.title }}</a></h5>
+                            <p>{{ task.description[:100] }}...</p>
+                            {% if task.assigned_user %}
+                            <small class="text-muted">Assigned to: {{ task.assigned_user.username }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="task-meta">
+                            <span class="priority priority-{{ task.priority.lower() }}">{{ task.priority }}</span>
+                            <span class="status status-{{ task.status.lower().replace(' ', '-') }}">{{ task.status }}</span>
+                            {% if task.deadline %}
+                            <span class="deadline">Due: {{ task.deadline.strftime('%b %d') }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if tasks|length == 0 %}
+                    <div class="empty-state">
+                        <i class="fas fa-tasks"></i>
+                        <p>No tasks created yet</p>
+                        {% if current_user.role in ['Admin', 'Manager'] %}
+                        <a href="{{ url_for('create_task') }}?project_id={{ project.id }}" class="btn btn-primary">Create First Task</a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Comments Section -->
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>Project Discussion</h3>
+                </div>
+                
+                <!-- Add Comment Form -->
+                <form method="POST" action="{{ url_for('add_project_comment', project_id=project.id) }}" class="comment-form">
+                    <div class="form-group">
+                        <textarea class="form-control" name="content" rows="3" 
+                                placeholder="Add a comment..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Comment</button>
+                </form>
+                
+                <!-- Comments List -->
+                <div class="comments-list">
+                    {% for comment in comments %}
+                    <div class="comment-item">
+                        <div class="comment-header">
+                            <span class="author">{{ comment.author.username }}</span>
+                            <span class="timestamp">{{ comment.created_at.strftime('%b %d, %Y at %I:%M %p') }}</span>
+                        </div>
+                        <div class="comment-content">
+                            {{ comment.content }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if comments|length == 0 %}
+                    <div class="empty-state small">
+                        <i class="fas fa-comments"></i>
+                        <p>No comments yet. Start the discussion!</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <!-- Team Members -->
+            <div class="content-card mb-4">
+                <div class="card-header">
+                    <h4>Team Members</h4>
+                </div>
+                <div class="team-list">
+                    {% for user in project.assigned_users %}
+                    <div class="team-member">
+                        <div class="member-avatar">{{ user.username[:2].upper() }}</div>
+                        <div class="member-info">
+                            <div class="member-name">{{ user.username }}</div>
+                            <div class="member-role">{{ user.role }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Documents -->
+            <div class="content-card">
+                <div class="card-header">
+                    <h4>Project Documents</h4>
+                </div>
+                
+                <!-- Upload Form -->
+                <form method="POST" action="{{ url_for('upload_project_document', project_id=project.id) }}" 
+                      enctype="multipart/form-data" class="upload-form">
+                    <div class="form-group">
+                        <input type="file" class="form-control" name="file" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Upload</button>
+                </form>
+                
+                <!-- Documents List -->
+                <div class="documents-list">
+                    {% for document in documents %}
+                    <div class="document-item">
+                        <i class="fas fa-file"></i>
+                        <div class="document-info">
+                            <div class="document-name">{{ document.original_filename }}</div>
+                            <div class="document-meta">
+                                <small>{{ document.uploaded_by.username }} • {{ document.uploaded_at.strftime('%b %d') }}</small>
+                            </div>
+                        </div>
+                        <a href="{{ url_for('download_document', document_id=document.id) }}" 
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-download"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if documents|length == 0 %}
+                    <div class="empty-state small">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No documents uploaded</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

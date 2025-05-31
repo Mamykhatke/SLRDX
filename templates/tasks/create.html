@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Create Task - SLRD Project Management{% endblock %}
+{% block page_title %}Create New Task{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="content-card">
+        <div class="card-header">
+            <h3>Create New Task</h3>
+            <p>Add a new task to a project</p>
+        </div>
+        
+        <form method="POST" class="task-form">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="form-group">
+                        <label for="title">Task Title *</label>
+                        <input type="text" class="form-control" id="title" name="title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Task Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="4"
+                                placeholder="Describe what needs to be done..."></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="project_id">Project *</label>
+                                <select class="form-control" id="project_id" name="project_id" required>
+                                    <option value="">Select Project</option>
+                                    {% for project in projects %}
+                                    <option value="{{ project.id }}" 
+                                            {{ 'selected' if request.args.get('project_id')|int == project.id }}>
+                                        {{ project.title }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="assigned_to_id">Assign To</label>
+                                <select class="form-control" id="assigned_to_id" name="assigned_to_id">
+                                    <option value="">Unassigned</option>
+                                    {% for user in assignable_users %}
+                                    <option value="{{ user.id }}">{{ user.username }} ({{ user.role }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="priority">Priority</label>
+                                <select class="form-control" id="priority" name="priority">
+                                    <option value="Low">Low</option>
+                                    <option value="Medium" selected>Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="deadline">Deadline</label>
+                                <input type="date" class="form-control" id="deadline" name="deadline">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="help-box">
+                        <h5>Task Guidelines</h5>
+                        <ul>
+                            <li>Choose a clear, descriptive title</li>
+                            <li>Provide detailed description of requirements</li>
+                            <li>Set realistic deadlines</li>
+                            <li>Assign to the appropriate team member</li>
+                            <li>Use priority levels to indicate urgency</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Create Task</button>
+                <a href="{{ url_for('tasks_list') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

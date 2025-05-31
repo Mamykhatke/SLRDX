@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - SLRD Project Management{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<div class="dashboard-overview">
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card primary">
+                <div class="stat-icon">
+                    <i class="fas fa-folder"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ active_projects }}</h3>
+                    <p>Active Projects</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card success">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ completed_tasks }}</h3>
+                    <p>Completed Tasks</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card warning">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ pending_tasks }}</h3>
+                    <p>Pending Tasks</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card danger">
+                <div class="stat-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ overdue_tasks }}</h3>
+                    <p>Overdue Tasks</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Projects Overview -->
+        <div class="col-md-8">
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>Projects Overview</h3>
+                    <p>Manage and track your active projects</p>
+                    <a href="{{ url_for('create_project') }}" class="btn btn-primary">New Project</a>
+                </div>
+                
+                <div class="projects-list">
+                    {% for project in recent_projects %}
+                    <div class="project-item">
+                        <h4>{{ project.title }}</h4>
+                        <p>{{ project.description[:100] }}...</p>
+                        
+                        <div class="project-meta">
+                            <div class="progress-info">
+                                <span>Progress</span>
+                                <span>{{ project.progress }}%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" style="width: {{ project.progress }}%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="project-details">
+                            <span class="status in-progress">{{ project.status }}</span>
+                            <span class="tasks">Tasks: {{ project.tasks.count() }}</span>
+                            <span class="team">Team: {{ project.assigned_users|length }}</span>
+                            <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-sm btn-outline-primary">Discussion</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if recent_projects|length == 0 %}
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <h4>No Projects Yet</h4>
+                        <p>Create your first project to get started</p>
+                        <a href="{{ url_for('create_project') }}" class="btn btn-primary">Create Project</a>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="card-footer">
+                    <a href="{{ url_for('projects_list') }}" class="view-all-link">
+                        View All Projects <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Upcoming Deadlines -->
+        <div class="col-md-4">
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>Upcoming Deadlines</h3>
+                    <p>Tasks due soon</p>
+                </div>
+                
+                <div class="deadlines-list">
+                    {% for task in upcoming_deadlines %}
+                    <div class="deadline-item">
+                        <div class="deadline-info">
+                            <h5>{{ task.title }}</h5>
+                            <p>{{ task.project.title }}</p>
+                            
+                            <div class="deadline-meta">
+                                <span class="deadline-date">{{ task.deadline.strftime('%b %d, %Y') }}</span>
+                                {% if task.is_overdue() %}
+                                    <span class="badge bg-danger">Overdue</span>
+                                {% elif (task.deadline - datetime.now().date()).days <= 1 %}
+                                    <span class="badge bg-warning">Today</span>
+                                {% else %}
+                                    <span class="badge bg-info">{{ (task.deadline - datetime.now().date()).days }} days</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if upcoming_deadlines|length == 0 %}
+                    <div class="empty-state small">
+                        <i class="fas fa-calendar-check"></i>
+                        <p>No upcoming deadlines</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

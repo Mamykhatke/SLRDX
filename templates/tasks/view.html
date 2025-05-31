@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.title }} - SLRD Project Management{% endblock %}
+{% block page_title %}{{ task.title }}{% endblock %}
+
+{% block content %}
+<div class="task-details">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Task Info -->
+            <div class="content-card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3>Task Details</h3>
+                            <div class="task-badges">
+                                <span class="priority-badge priority-{{ task.priority.lower() }}">{{ task.priority }}</span>
+                                <span class="status-badge status-{{ task.status.lower().replace(' ', '-') }}">{{ task.status }}</span>
+                                {% if task.is_overdue() %}
+                                <span class="badge bg-danger">Overdue</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="task-actions">
+                            {% if task.status != 'Completed' and (task.assigned_to_id == current_user.id or current_user.role in ['Admin', 'Manager']) %}
+                            <form method="POST" action="{{ url_for('complete_task', task_id=task.id) }}" class="d-inline">
+                                <button type="submit" class="btn btn-success">Mark Complete</button>
+                            </form>
+                            {% endif %}
+                            {% if current_user.role in ['Admin', 'Manager'] and task.created_by_id == current_user.id %}
+                            <a href="{{ url_for('edit_task', task_id=task.id) }}" class="btn btn-outline-primary">
+                                <i class="fas fa-edit"></i> Edit Task
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="task-info">
+                    <p class="description">{{ task.description or 'No description provided.' }}</p>
+                    
+                    <div class="task-meta-grid">
+                        <div class="meta-item">
+                            <label>Project:</label>
+                            <span><a href="{{ url_for('view_project', project_id=task.project.id) }}">{{ task.project.title }}</a></span>
+                        </div>
+                        <div class="meta-item">
+                            <label>Created by:</label>
+                            <span>{{ task.creator.username }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <label>Assigned to:</label>
+                            <span>{{ task.assigned_user.username if task.assigned_user else 'Unassigned' }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <label>Created on:</label>
+                            <span>{{ task.created_at.strftime('%B %d, %Y') }}</span>
+                        </div>
+                        {% if task.deadline %}
+                        <div class="meta-item">
+                            <label>Deadline:</label>
+                            <span>{{ task.deadline.strftime('%B %d, %Y') }}</span>
+                        </div>
+                        {% endif %}
+                        {% if task.completed_at %}
+                        <div class="meta-item">
+                            <label>Completed on:</label>
+                            <span>{{ task.completed_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Comments Section -->
+            <div class="content-card">
+                <div class="card-header">
+                    <h3>Task Discussion</h3>
+                </div>
+                
+                <!-- Add Comment Form -->
+                <form method="POST" action="{{ url_for('add_task_comment', task_id=task.id) }}" class="comment-form">
+                    <div class="form-group">
+                        <textarea class="form-control" name="content" rows="3" 
+                                placeholder="Add a comment..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Comment</button>
+                </form>
+                
+                <!-- Comments List -->
+                <div class="comments-list">
+                    {% for comment in comments %}
+                    <div class="comment-item">
+                        <div class="comment-header">
+                            <span class="author">{{ comment.author.username }}</span>
+                            <span class="timestamp">{{ comment.created_at.strftime('%b %d, %Y at %I:%M %p') }}</span>
+                        </div>
+                        <div class="comment-content">
+                            {{ comment.content }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if comments|length == 0 %}
+                    <div class="empty-state small">
+                        <i class="fas fa-comments"></i>
+                        <p>No comments yet. Start the discussion!</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <!-- Task Summary -->
+            <div class="content-card mb-4">
+                <div class="card-header">
+                    <h4>Task Summary</h4>
+                </div>
+                <div class="task-summary">
+                    <div class="summary-item">
+                        <i class="fas fa-project-diagram"></i>
+                        <div>
+                            <label>Project</label>
+                            <span>{{ task.project.title }}</span>
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <i class="fas fa-user"></i>
+                        <div>
+                            <label>Assignee</label>
+                            <span>{{ task.assigned_user.username if task.assigned_user else 'Unassigned' }}</span>
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <i class="fas fa-flag"></i>
+                        <div>
+                            <label>Priority</label>
+                            <span class="priority-badge priority-{{ task.priority.lower() }}">{{ task.priority }}</span>
+                        </div>
+                    </div>
+                    {% if task.deadline %}
+                    <div class="summary-item">
+                        <i class="fas fa-calendar"></i>
+                        <div>
+                            <label>Deadline</label>
+                            <span>{{ task.deadline.strftime('%b %d, %Y') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Documents -->
+            <div class="content-card">
+                <div class="card-header">
+                    <h4>Task Documents</h4>
+                </div>
+                
+                <!-- Upload Form -->
+                <form method="POST" action="{{ url_for('upload_task_document', task_id=task.id) }}" 
+                      enctype="multipart/form-data" class="upload-form">
+                    <div class="form-group">
+                        <input type="file" class="form-control" name="file" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Upload</button>
+                </form>
+                
+                <!-- Documents List -->
+                <div class="documents-list">
+                    {% for document in documents %}
+                    <div class="document-item">
+                        <i class="fas fa-file"></i>
+                        <div class="document-info">
+                            <div class="document-name">{{ document.original_filename }}</div>
+                            <div class="document-meta">
+                                <small>{{ document.uploaded_by.username }} • {{ document.uploaded_at.strftime('%b %d') }}</small>
+                            </div>
+                        </div>
+                        <a href="{{ url_for('download_document', document_id=document.id) }}" 
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-download"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if documents|length == 0 %}
+                    <div class="empty-state small">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No documents uploaded</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
