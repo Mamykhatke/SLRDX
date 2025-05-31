@@ -378,6 +378,52 @@ def view_task(task_id):
                          comments=comments,
                          documents=documents)
 
+@app.route('/tasks/<int:task_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager'] or \
+       (current_user.role == 'Manager' and task.created_by_id != current_user.id):
+        abort(403)
+    
+    if request.method == 'POST':
+        task.title = request.form['title']
+        task.description = request.form['description']
+        task.status = request.form['status']
+        task.priority = request.form['priority']
+        assigned_to_id = request.form.get('assigned_to_id')
+        deadline = request.form.get('deadline')
+        
+        if assigned_to_id:
+            task.assigned_to_id = assigned_to_id
+        else:
+            task.assigned_to_id = None
+            
+        if deadline:
+            task.deadline = datetime.strptime(deadline, '%Y-%m-%d').date()
+        else:
+            task.deadline = None
+        
+        db.session.commit()
+        
+        # Update project progress
+        task.project.update_progress()
+        
+        flash('Task updated successfully!', 'success')
+        return redirect(url_for('view_task', task_id=task.id))
+    
+    # Get users that can be assigned
+    if current_user.role == 'Admin':
+        assignable_users = User.query.all()
+    else:  # Manager
+        assignable_users = current_user.managed_users.all()
+    
+    return render_template('tasks/edit.html', 
+                         task=task, 
+                         assignable_users=assignable_users)
+
 @app.route('/tasks/<int:task_id>/complete', methods=['POST'])
 @login_required
 def complete_task(task_id):

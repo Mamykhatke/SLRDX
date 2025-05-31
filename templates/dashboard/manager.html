@@ -124,10 +124,13 @@
                                 <span class="deadline-date">{{ task.deadline.strftime('%b %d, %Y') }}</span>
                                 {% if task.is_overdue() %}
                                     <span class="badge bg-danger">Overdue</span>
-                                {% elif (task.deadline - datetime.now().date()).days <= 1 %}
-                                    <span class="badge bg-warning">Today</span>
                                 {% else %}
-                                    <span class="badge bg-info">{{ (task.deadline - datetime.now().date()).days }} days</span>
+                                    {% set days_remaining = (task.deadline - task.deadline.__class__.today()).days %}
+                                    {% if days_remaining <= 1 %}
+                                        <span class="badge bg-warning">{{ 'Today' if days_remaining == 0 else 'Tomorrow' }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ days_remaining }} days</span>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         </div>
