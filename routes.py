@@ -4,7 +4,7 @@ from flask import render_template, request, redirect, url_for, flash, send_from_
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from app import app, db
-from models import User, Project, Task, Comment, Document, UserPermission
+from models import User, Project, Task, Comment, Document, UserPermission, Milestone, UserType, DocumentComment, DocumentVersion
 
 # Authentication routes
 @app.route('/')

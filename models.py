@@ -11,6 +11,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False, default='User')  # Admin, Manager, User
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    skills = db.Column(db.Text)  # JSON string of skills array
     
     # Relationships
     managed_users = db.relationship('User', backref=db.backref('manager', remote_side=[id]), lazy='dynamic')
@@ -120,17 +121,26 @@ class Task(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    dependent_on_task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    reassigned_from_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    skill_match_percentage = db.Column(db.Integer, default=0)
     
     # Relationships
     comments = db.relationship('Comment', backref='task', lazy='dynamic', cascade='all, delete-orphan')
     documents = db.relationship('Document', backref='task', lazy='dynamic', cascade='all, delete-orphan')
+    dependent_task = db.relationship('Task', remote_side=[id], backref='dependent_tasks')
+    reassigned_from = db.relationship('User', foreign_keys=[reassigned_from_id])
     
     def mark_completed(self):
         """Mark task as completed and update project progress"""
         self.status = 'Completed'
         self.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        self.project.update_progress()
+        
+        # Update project progress
+        project = Project.query.get(self.project_id)
+        if project:
+            project.update_progress()
     
     def is_overdue(self):
         """Check if task is overdue"""
@@ -167,6 +177,55 @@ class UserPermission(db.Model):
     granted = db.Column(db.Boolean, default=False)
     
     __table_args__ = (db.UniqueConstraint('user_id', 'module', 'action'),)
+
+# New models for enhanced functionality
+class Milestone(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    due_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='Pending')  # Pending, Completed
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    project = db.relationship('Project', backref='milestones')
+
+class UserType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    description = db.Column(db.Text)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    created_by = db.relationship('User', backref='created_user_types')
+
+class DocumentComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    document_id = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    author = db.relationship('User', backref='document_comments')
+    document = db.relationship('Document', backref='comments')
+
+class DocumentVersion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    document_id = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=False)
+    version_number = db.Column(db.Integer, nullable=False)
+    filename = db.Column(db.String(200), nullable=False)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    file_size = db.Column(db.Integer)
+    is_current = db.Column(db.Boolean, default=False)
+    
+    # Relationships
+    document = db.relationship('Document', backref='versions')
+    uploaded_by = db.relationship('User', backref='uploaded_versions')
 
 # Association table for project assignments
 project_assignments = db.Table('project_assignments',
