@@ -16,7 +16,7 @@
     
     <div class="team-grid">
         {% for user in users %}
-        <div class="team-member-card">
+        <div class="team-member-card" onclick="showMemberDetails({{ user.id }})">
             <div class="member-header">
                 <div class="member-avatar">{{ user.username[:2].upper() }}</div>
                 <div class="member-info">
@@ -60,9 +60,14 @@
             <div class="member-actions">
                 {% if user.role != 'Admin' %}
                 <a href="{{ url_for('manage_permissions', user_id=user.id) }}" 
-                   class="btn btn-outline-primary btn-sm">
+                   class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation();">
                     <i class="fas fa-cog"></i> Manage Permissions
                 </a>
+                {% endif %}
+                {% if current_user.role == 'Admin' and user.id != current_user.id %}
+                <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); deleteUser({{ user.id }}, '{{ user.username }}')">
+                    <i class="fas fa-trash"></i>
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -77,4 +82,27 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function showMemberDetails(userId) {
+    window.location.href = `/team/member/${userId}`;
+}
+
+function deleteUser(userId, username) {
+    if (confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        fetch(`/users/${userId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error deleting user');
+            }
+        });
+    }
+}
+</script>
 {% endblock %}
