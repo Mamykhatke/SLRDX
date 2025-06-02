@@ -647,3 +647,190 @@ def manage_permissions(user_id):
         permissions[key] = perm.granted
     
     return render_template('team/permissions.html', user=user, permissions=permissions)
+
+# New routes for enhanced functionality
+@app.route('/team/member/<int:user_id>')
+@login_required
+def team_member_detail(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    if current_user.role == 'Manager':
+        # Manager can only view their managed users or themselves
+        managed_user_ids = [u.id for u in current_user.managed_users]
+        managed_user_ids.append(current_user.id)
+        if user_id not in managed_user_ids:
+            abort(403)
+    
+    # Get user's tasks and projects
+    user_tasks = Task.query.filter_by(assigned_to_id=user_id).all()
+    user_projects = user.projects_assigned.all()
+    
+    # Calculate task statistics
+    completed_tasks = [t for t in user_tasks if t.status == 'Completed']
+    pending_tasks = [t for t in user_tasks if t.status in ['Pending', 'In Progress']]
+    overdue_tasks = [t for t in user_tasks if t.is_overdue()]
+    
+    return render_template('team/member_detail.html', 
+                         user=user,
+                         user_tasks=user_tasks,
+                         user_projects=user_projects,
+                         completed_tasks=completed_tasks,
+                         pending_tasks=pending_tasks,
+                         overdue_tasks=overdue_tasks)
+
+@app.route('/tasks/<int:task_id>/reassign', methods=['POST'])
+@login_required
+def reassign_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    new_assignee_id = request.form.get('new_assignee_id')
+    if not new_assignee_id:
+        flash('Please select a user to reassign the task to.', 'error')
+        return redirect(request.referrer)
+    
+    new_assignee = User.query.get(new_assignee_id)
+    if not new_assignee:
+        flash('Selected user not found.', 'error')
+        return redirect(request.referrer)
+    
+    # Calculate skill match based on user skills
+    skill_match = 0
+    if new_assignee.skills:
+        import json
+        try:
+            user_skills = json.loads(new_assignee.skills)
+            # Basic skill matching - you can enhance this logic
+            task_keywords = task.title.lower().split()
+            matches = sum(1 for skill in user_skills if any(keyword in skill.lower() for keyword in task_keywords))
+            if user_skills:
+                skill_match = int((matches / len(user_skills)) * 100)
+        except:
+            skill_match = 0
+    
+    # Store previous assignee for tracking
+    task.reassigned_from_id = task.assigned_to_id
+    task.assigned_to_id = new_assignee_id
+    task.skill_match_percentage = skill_match
+    
+    db.session.commit()
+    
+    flash(f'Task reassigned to {new_assignee.username} successfully! (Skill match: {skill_match}%)', 'success')
+    return redirect(request.referrer)
+
+@app.route('/projects/<int:project_id>/delete', methods=['POST'])
+@login_required
+def delete_project(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check permissions
+    if current_user.role != 'Admin' and project.created_by_id != current_user.id:
+        abort(403)
+    
+    db.session.delete(project)
+    db.session.commit()
+    
+    flash('Project deleted successfully!', 'success')
+    return redirect(url_for('projects_list'))
+
+@app.route('/tasks/<int:task_id>/delete', methods=['POST'])
+@login_required
+def delete_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager'] and task.created_by_id != current_user.id:
+        abort(403)
+    
+    db.session.delete(task)
+    db.session.commit()
+    
+    flash('Task deleted successfully!', 'success')
+    return redirect(url_for('tasks_list'))
+
+@app.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.role != 'Admin':
+        abort(403)
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Don't allow deleting yourself
+    if user.id == current_user.id:
+        flash('You cannot delete yourself!', 'error')
+        return redirect(url_for('team_list'))
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash('User deleted successfully!', 'success')
+    return redirect(url_for('team_list'))
+
+@app.route('/settings')
+@login_required
+def settings():
+    user_types = UserType.query.filter_by(is_active=True).all()
+    return render_template('settings/index.html', user_types=user_types)
+
+@app.route('/settings/user-types/create', methods=['GET', 'POST'])
+@login_required
+def create_user_type():
+    # Check if user has permission to create user types
+    if not current_user.has_permission('Settings', 'Add'):
+        abort(403)
+    
+    if request.method == 'POST':
+        name = request.form['name']
+        description = request.form.get('description', '')
+        
+        user_type = UserType(
+            name=name,
+            description=description,
+            created_by_id=current_user.id
+        )
+        
+        db.session.add(user_type)
+        db.session.commit()
+        
+        flash('User type created successfully!', 'success')
+        return redirect(url_for('settings'))
+    
+    return render_template('settings/create_user_type.html')
+
+@app.route('/your-permissions')
+@login_required
+def your_permissions():
+    permissions = current_user.permissions.all()
+    return render_template('permissions/your_permissions.html', permissions=permissions)
+
+@app.route('/profile/skills', methods=['GET', 'POST'])
+@login_required
+def manage_skills():
+    if request.method == 'POST':
+        skills_input = request.form.get('skills', '')
+        skills_list = [skill.strip() for skill in skills_input.split(',') if skill.strip()]
+        
+        import json
+        current_user.skills = json.dumps(skills_list)
+        db.session.commit()
+        
+        flash('Skills updated successfully!', 'success')
+        return redirect(url_for('manage_skills'))
+    
+    current_skills = []
+    if current_user.skills:
+        import json
+        try:
+            current_skills = json.loads(current_user.skills)
+        except:
+            current_skills = []
+    
+    return render_template('profile/skills.html', current_skills=current_skills)
