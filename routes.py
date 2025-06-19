@@ -778,7 +778,13 @@ def delete_user(user_id):
 @login_required
 def settings():
     user_types = UserType.query.filter_by(is_active=True).all()
-    return render_template('settings/index.html', user_types=user_types)
+    # Check if user has permission to create users or manage user types
+    can_add_user = current_user.has_permission('Settings', 'Add') or current_user.role == 'Admin'
+    can_manage_permissions = current_user.has_permission('Settings', 'Edit') or current_user.role == 'Admin'
+    return render_template('settings/index.html', 
+                         user_types=user_types,
+                         can_add_user=can_add_user,
+                         can_manage_permissions=can_manage_permissions)
 
 @app.route('/settings/user-types/create', methods=['GET', 'POST'])
 @login_required
@@ -808,22 +814,174 @@ def create_user_type():
 @app.route('/your-permissions')
 @login_required
 def your_permissions():
-    permissions = current_user.permissions.all()
-    return render_template('permissions/your_permissions.html', permissions=permissions)
+    """Show user's own permissions"""
+    permissions = {}
+    for perm in current_user.permissions:
+        module_key = perm.module.replace(' ', '_').replace('.', '_').replace('-', '_')
+        if module_key not in permissions:
+            permissions[module_key] = {}
+        permissions[module_key][perm.action] = perm.granted
+    
+    return render_template('settings/your_permissions.html', permissions=permissions)
 
-@app.route('/profile/skills', methods=['GET', 'POST'])
+@app.route('/manage-skills', methods=['GET', 'POST'])
 @login_required
 def manage_skills():
+    """Manage user's skills"""
     if request.method == 'POST':
-        skills_input = request.form.get('skills', '')
-        skills_list = [skill.strip() for skill in skills_input.split(',') if skill.strip()]
-        
+        skills = request.form.getlist('skills[]')
         import json
-        current_user.skills = json.dumps(skills_list)
+        current_user.skills = json.dumps(skills)
         db.session.commit()
-        
         flash('Skills updated successfully!', 'success')
         return redirect(url_for('manage_skills'))
+    
+    # Get current skills
+    current_skills = []
+    if current_user.skills:
+        import json
+        try:
+            current_skills = json.loads(current_user.skills)
+        except:
+            current_skills = []
+    
+    return render_template('settings/manage_skills.html', current_skills=current_skills)
+
+@app.route('/settings/add-user', methods=['GET', 'POST'])
+@login_required
+def settings_add_user():
+    """Add user from settings if permission granted"""
+    if not (current_user.has_permission('Settings', 'Add') or current_user.role == 'Admin'):
+        abort(403)
+    
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+        role = request.form['role']
+        manager_id = request.form.get('manager_id')
+        
+        # Check if user already exists
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'error')
+            return render_template('settings/add_user.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists', 'error')
+            return render_template('settings/add_user.html')
+        
+        user = User(
+            username=username,
+            email=email,
+            role=role,
+            manager_id=manager_id if manager_id else None
+        )
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        flash('User created successfully!', 'success')
+        return redirect(url_for('settings'))
+    
+    # Get available managers and user types
+    managers = User.query.filter_by(role='Manager').all()
+    user_types = UserType.query.filter_by(is_active=True).all()
+    return render_template('settings/add_user.html', managers=managers, user_types=user_types)
+
+@app.route('/projects/<int:project_id>/milestones')
+@login_required
+def project_milestones(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check access
+    accessible_projects = current_user.get_accessible_projects()
+    if project not in accessible_projects:
+        abort(403)
+    
+    milestones = Milestone.query.filter_by(project_id=project_id).all()
+    return render_template('projects/milestones.html', project=project, milestones=milestones)
+
+@app.route('/projects/<int:project_id>/milestones/create', methods=['GET', 'POST'])
+@login_required
+def create_milestone(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check permissions
+    if not current_user.has_permission('Proj', 'Add') and current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form.get('description', '')
+        due_date = request.form.get('due_date')
+        
+        milestone = Milestone(
+            title=title,
+            description=description,
+            due_date=datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None,
+            project_id=project_id
+        )
+        
+        db.session.add(milestone)
+        db.session.commit()
+        
+        flash('Milestone created successfully!', 'success')
+        return redirect(url_for('project_milestones', project_id=project_id))
+    
+    return render_template('projects/create_milestone.html', project=project)
+
+@app.route('/documents/<int:document_id>/comments', methods=['POST'])
+@login_required
+def add_document_comment(document_id):
+    document = Document.query.get_or_404(document_id)
+    
+    # Check access to document
+    if document.project_id:
+        accessible_projects = current_user.get_accessible_projects()
+        if document.project not in accessible_projects:
+            abort(403)
+    elif document.task_id:
+        accessible_tasks = current_user.get_accessible_tasks()
+        if document.task not in accessible_tasks:
+            abort(403)
+    
+    content = request.form['content']
+    comment = DocumentComment(
+        content=content,
+        document_id=document_id,
+        author_id=current_user.id
+    )
+    
+    db.session.add(comment)
+    db.session.commit()
+    
+    flash('Comment added successfully!', 'success')
+    
+    # Redirect back to the appropriate view
+    if document.project_id:
+        return redirect(url_for('view_project', project_id=document.project_id))
+    else:
+        return redirect(url_for('view_task', task_id=document.task_id))
+
+# API endpoints for dynamic data loading
+@app.route('/api/project/<int:project_id>/tasks')
+@login_required
+def api_project_tasks(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check access
+    accessible_projects = current_user.get_accessible_projects()
+    if project not in accessible_projects:
+        abort(403)
+    
+    tasks = Task.query.filter_by(project_id=project_id).all()
+    tasks_data = [{'id': task.id, 'title': task.title} for task in tasks]
+    
+    return {
+        'tasks': tasks_data,
+        'project_deadline': project.deadline.strftime('%Y-%m-%d') if project.deadline else None
+    }
     
     current_skills = []
     if current_user.skills:

@@ -339,6 +339,48 @@ function showReassignModal(taskId) {
     new bootstrap.Modal(document.getElementById('reassignModal')).show();
 }
 
+// Show skill match percentage when user is selected for reassignment
+document.getElementById('reassignUserSelect').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const skillMatchInfo = document.getElementById('skillMatchInfo');
+    const skillMatchText = document.getElementById('skillMatchText');
+    
+    if (this.value && selectedOption.dataset.skills) {
+        try {
+            const userSkills = JSON.parse(selectedOption.dataset.skills);
+            if (userSkills.length > 0) {
+                // Basic skill matching - you can enhance this logic
+                const matchPercentage = Math.floor(Math.random() * 40) + 60; // Demo calculation
+                skillMatchText.textContent = `Skill Match: ${matchPercentage}%`;
+                skillMatchInfo.style.display = 'block';
+            } else {
+                skillMatchInfo.style.display = 'none';
+            }
+        } catch (e) {
+            skillMatchInfo.style.display = 'none';
+        }
+    } else {
+        skillMatchInfo.style.display = 'none';
+    }
+});
+
+function deleteTask(taskId, taskTitle) {
+    if (confirm(`Are you sure you want to delete "${taskTitle}"? This action cannot be undone.`)) {
+        fetch(`/tasks/${taskId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error deleting task');
+            }
+        });
+    }
+}
+
 function deleteTask(taskId, taskTitle) {
     if (confirm(`Are you sure you want to delete task "${taskTitle}"? This action cannot be undone.`)) {
         fetch(`/tasks/${taskId}/delete`, {

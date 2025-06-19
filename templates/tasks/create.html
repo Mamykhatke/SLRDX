@@ -68,6 +68,31 @@
                             <div class="form-group">
                                 <label for="deadline">Deadline</label>
                                 <input type="date" class="form-control" id="deadline" name="deadline">
+                                <small class="form-text text-muted">Must be before project deadline</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="dependent_on_task_id">Task Dependency (Optional)</label>
+                                <select class="form-control" id="dependent_on_task_id" name="dependent_on_task_id">
+                                    <option value="">No dependency</option>
+                                    <optgroup label="Tasks in selected project" id="project-tasks">
+                                        <!-- Will be populated by JavaScript -->
+                                    </optgroup>
+                                </select>
+                                <small class="form-text text-muted">Select if this task depends on another task</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="status">Initial Status</label>
+                                <select class="form-control" id="status" name="status">
+                                    <option value="Pending" selected>Pending</option>
+                                    <option value="In Progress">In Progress</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -94,4 +119,40 @@
         </form>
     </div>
 </div>
+
+<script>
+// Update task dependencies when project is selected
+document.getElementById('project_id').addEventListener('change', function() {
+    const projectId = this.value;
+    const dependencySelect = document.getElementById('dependent_on_task_id');
+    const projectTasksGroup = document.getElementById('project-tasks');
+    const deadlineInput = document.getElementById('deadline');
+    
+    // Clear existing options
+    projectTasksGroup.innerHTML = '';
+    
+    if (projectId) {
+        // Fetch project tasks and deadline
+        fetch(`/api/project/${projectId}/tasks`)
+            .then(response => response.json())
+            .then(data => {
+                // Update task dependencies
+                data.tasks.forEach(task => {
+                    const option = document.createElement('option');
+                    option.value = task.id;
+                    option.textContent = task.title;
+                    projectTasksGroup.appendChild(option);
+                });
+                
+                // Set max date for task deadline based on project deadline
+                if (data.project_deadline) {
+                    deadlineInput.max = data.project_deadline;
+                }
+            })
+            .catch(error => console.error('Error fetching project tasks:', error));
+    } else {
+        deadlineInput.removeAttribute('max');
+    }
+});
+</script>
 {% endblock %}
