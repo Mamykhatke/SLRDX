@@ -381,6 +381,76 @@ function deleteTask(taskId, taskTitle) {
     }
 }
 
+function approveTask(taskId) {
+    if (confirm('Approve this task completion?')) {
+        fetch(`/tasks/${taskId}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            }
+        });
+    }
+}
+
+function rejectTask(taskId) {
+    if (confirm('Reject this task completion? Task will return to in progress.')) {
+        fetch(`/tasks/${taskId}/reject`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            }
+        });
+    }
+}
+
+function showUserTasks(userId) {
+    fetch(`/api/user/${userId}/tasks`)
+        .then(response => response.json())
+        .then(data => {
+            showUserTasksModal(data);
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function showUserTasksModal(data) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>${data.user.username}'s Tasks</h3>
+                <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="user-tasks-list">
+                    ${data.tasks.map(task => `
+                        <div class="task-item">
+                            <h6><a href="/tasks/${task.id}">${task.title}</a></h6>
+                            <p>Project: ${task.project_title}</p>
+                            <div class="task-meta">
+                                <span class="status-badge">${task.status}</span>
+                                ${task.deadline ? `<small>Due: ${task.deadline}</small>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
 function deleteTask(taskId, taskTitle) {
     if (confirm(`Are you sure you want to delete task "${taskTitle}"? This action cannot be undone.`)) {
         fetch(`/tasks/${taskId}/delete`, {

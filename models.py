@@ -102,6 +102,23 @@ class Project(db.Model):
             self.status = 'Just Started'
         db.session.commit()
     
+    def mark_completed(self, user_id=None):
+        """Mark project as completed with approval workflow"""
+        from models_extensions import ProjectApproval
+        
+        if user_id:
+            approval = ProjectApproval(
+                project_id=self.id,
+                marked_complete_by_id=user_id,
+                status='Pending'
+            )
+            db.session.add(approval)
+            self.status = 'Pending Approval'
+        else:
+            self.status = 'Completed'
+        
+        db.session.commit()
+    
     def is_overdue(self):
         """Check if project is overdue"""
         if self.deadline and self.status != 'Completed':
@@ -131,16 +148,30 @@ class Task(db.Model):
     dependent_task = db.relationship('Task', remote_side=[id], backref='dependent_tasks')
     reassigned_from = db.relationship('User', foreign_keys=[reassigned_from_id])
     
-    def mark_completed(self):
+    def mark_completed(self, user_id=None):
         """Mark task as completed and update project progress"""
-        self.status = 'Completed'
-        self.completed_at = datetime.now(timezone.utc)
+        # Create approval record for hierarchy approval
+        from models_extensions import TaskApproval
+        
+        if user_id:
+            approval = TaskApproval(
+                task_id=self.id,
+                marked_complete_by_id=user_id,
+                status='Pending'
+            )
+            db.session.add(approval)
+            self.status = 'Pending Approval'
+        else:
+            self.status = 'Completed'
+            self.completed_at = datetime.now(timezone.utc)
+        
         db.session.commit()
         
-        # Update project progress
-        project = Project.query.get(self.project_id)
-        if project:
-            project.update_progress()
+        # Update project progress only if actually completed
+        if self.status == 'Completed':
+            project = Project.query.get(self.project_id)
+            if project:
+                project.update_progress()
     
     def is_overdue(self):
         """Check if task is overdue"""

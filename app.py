@@ -46,6 +46,7 @@ def load_user(user_id):
 with app.app_context():
     # Import models to ensure tables are created
     import models
+    import models_extensions
     db.create_all()
     
     # Import and register routes

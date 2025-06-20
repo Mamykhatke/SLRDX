@@ -5,6 +5,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from app import app, db
 from models import User, Project, Task, Comment, Document, UserPermission, Milestone, UserType, DocumentComment, DocumentVersion
+from models_extensions import Outcome, ProjectApproval, TaskApproval, ManualTaskDependency
 
 # Authentication routes
 @app.route('/')
@@ -982,6 +983,118 @@ def api_project_tasks(project_id):
         'tasks': tasks_data,
         'project_deadline': project.deadline.strftime('%Y-%m-%d') if project.deadline else None
     }
+
+# New routes for outcomes and additional features
+
+@app.route('/tasks/<int:task_id>/outcomes/create', methods=['POST'])
+@login_required
+def create_outcome(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager'] and current_user.id != task.assigned_to_id:
+        abort(403)
+    
+    title = request.form['title']
+    description = request.form.get('description', '')
+    
+    outcome = Outcome(
+        title=title,
+        description=description,
+        task_id=task_id,
+        created_by_id=current_user.id
+    )
+    
+    db.session.add(outcome)
+    db.session.commit()
+    
+    flash('Outcome created successfully!', 'success')
+    return redirect(url_for('view_task', task_id=task_id))
+
+@app.route('/outcomes/<int:outcome_id>/complete', methods=['POST'])
+@login_required
+def complete_outcome(outcome_id):
+    outcome = Outcome.query.get_or_404(outcome_id)
+    
+    # Check if user is assigned to the task
+    if current_user.id != outcome.task.assigned_to_id and current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    outcome.mark_completed(current_user.id)
+    
+    flash('Outcome marked as complete!', 'success')
+    return redirect(request.referrer)
+
+# Approval workflow routes
+@app.route('/tasks/<int:task_id>/approve', methods=['POST'])
+@login_required
+def approve_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user has authority to approve
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    # Find pending approval
+    approval = TaskApproval.query.filter_by(task_id=task_id, status='Pending').first()
+    if approval:
+        approval.status = 'Approved'
+        approval.approved_by_id = current_user.id
+        approval.approved_at = datetime.now(timezone.utc)
+        
+        task.status = 'Completed'
+        task.completed_at = datetime.now(timezone.utc)
+        
+        db.session.commit()
+        flash('Task approved and marked as complete!', 'success')
+    
+    return redirect(request.referrer)
+
+@app.route('/tasks/<int:task_id>/reject', methods=['POST'])
+@login_required
+def reject_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user has authority to reject
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    # Find pending approval
+    approval = TaskApproval.query.filter_by(task_id=task_id, status='Pending').first()
+    if approval:
+        approval.status = 'Rejected'
+        approval.approved_by_id = current_user.id
+        approval.approved_at = datetime.now(timezone.utc)
+        
+        task.status = 'In Progress'  # Reset to in progress
+        
+        db.session.commit()
+        flash('Task completion rejected. Task returned to in progress.', 'warning')
+    
+    return redirect(request.referrer)
+
+@app.route('/projects/<int:project_id>/approve', methods=['POST'])
+@login_required
+def approve_project(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check if user has authority to approve
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    # Find pending approval
+    approval = ProjectApproval.query.filter_by(project_id=project_id, status='Pending').first()
+    if approval:
+        approval.status = 'Approved'
+        approval.approved_by_id = current_user.id
+        approval.approved_at = datetime.now(timezone.utc)
+        
+        project.status = 'Completed'
+        
+        db.session.commit()
+        flash('Project approved and marked as complete!', 'success')
+    
+    return redirect(request.referrer)
     
     current_skills = []
     if current_user.skills:

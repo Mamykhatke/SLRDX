@@ -139,6 +139,53 @@
                     {% endif %}
                 </div>
             </div>
+            
+            <!-- Milestones Section -->
+            <div class="content-card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4>Project Milestones</h4>
+                    {% if current_user.role in ['Admin', 'Manager'] %}
+                    <button class="btn btn-sm btn-outline-primary" onclick="showAddMilestoneModal()">
+                        <i class="fas fa-plus"></i> Add Milestone
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <div class="milestones-list">
+                    {% for milestone in project.milestones %}
+                    <div class="milestone-item">
+                        <div class="milestone-status">
+                            {% if milestone.status == 'Completed' %}
+                            <i class="fas fa-check-circle text-success"></i>
+                            {% else %}
+                            <i class="fas fa-clock text-warning"></i>
+                            {% endif %}
+                        </div>
+                        <div class="milestone-info">
+                            <h6>{{ milestone.title }}</h6>
+                            <p>{{ milestone.description }}</p>
+                            {% if milestone.due_date %}
+                            <small class="text-muted">Due: {{ milestone.due_date.strftime('%b %d, %Y') }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="milestone-actions">
+                            {% if milestone.status == 'Pending' and current_user in project.assigned_users %}
+                            <button class="btn btn-sm btn-success" onclick="markMilestoneComplete({{ milestone.id }})">
+                                Mark Done
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if project.milestones|length == 0 %}
+                    <div class="empty-state small">
+                        <i class="fas fa-flag"></i>
+                        <p>No milestones added yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         
         <div class="col-md-4">
@@ -176,6 +223,7 @@
                 </form>
                 
                 <!-- Documents List -->
+                {% if current_user.has_permission('Proj doc', 'View') or current_user.role in ['Admin', 'Manager'] %}
                 <div class="documents-list">
                     {% for document in documents %}
                     <div class="document-item">
@@ -184,13 +232,51 @@
                             <div class="document-name">{{ document.original_filename }}</div>
                             <div class="document-meta">
                                 <small>{{ document.uploaded_by.username }} • {{ document.uploaded_at.strftime('%b %d') }}</small>
+                                {% if document.versions %}
+                                <br><small class="text-info">Version {{ document.versions|length }} (Current)</small>
+                                {% endif %}
                             </div>
                         </div>
-                        <a href="{{ url_for('download_document', document_id=document.id) }}" 
-                           class="btn btn-sm btn-outline-secondary">
-                            <i class="fas fa-download"></i>
-                        </a>
+                        <div class="document-actions">
+                            {% if current_user.has_permission('Proj doc', 'Download') or current_user.role in ['Admin', 'Manager'] %}
+                            <a href="{{ url_for('download_document', document_id=document.id) }}" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            {% endif %}
+                            {% if current_user.has_permission('Proj Dis.', 'View') or current_user.role in ['Admin', 'Manager'] %}
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleDocumentComments({{ document.id }})">
+                                <i class="fas fa-comments"></i> {{ document.comments.count() }}
+                            </button>
+                            {% endif %}
+                        </div>
                     </div>
+                    
+                    <!-- Document Comments Section -->
+                    {% if current_user.has_permission('Proj Dis.', 'View') or current_user.role in ['Admin', 'Manager'] %}
+                    <div id="documentComments{{ document.id }}" class="document-comments mt-2" style="display: none;">
+                        {% if current_user.has_permission('Proj Dis.', 'Add') or current_user.role in ['Admin', 'Manager'] %}
+                        <form method="POST" action="{{ url_for('add_document_comment', document_id=document.id) }}" class="mb-2">
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" name="content" placeholder="Add a comment..." required>
+                                <button type="submit" class="btn btn-primary">Post</button>
+                            </div>
+                        </form>
+                        {% endif %}
+                        
+                        <div class="document-comments-list">
+                            {% for comment in document.comments %}
+                            <div class="document-comment">
+                                <div class="comment-header">
+                                    <strong>{{ comment.author.username }}</strong>
+                                    <small class="text-muted">{{ comment.created_at.strftime('%b %d, %Y at %I:%M %p') }}</small>
+                                </div>
+                                <p class="comment-content">{{ comment.content }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% endfor %}
                     
                     {% if documents|length == 0 %}
@@ -200,6 +286,7 @@
                     </div>
                     {% endif %}
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
