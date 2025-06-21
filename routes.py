@@ -434,8 +434,14 @@ def complete_task(task_id):
     if task.assigned_to_id != current_user.id and current_user.role not in ['Admin', 'Manager']:
         abort(403)
     
-    task.mark_completed()
-    flash('Task marked as completed!', 'success')
+    # Use approval workflow for non-admin users
+    if current_user.role != 'Admin':
+        task.mark_completed(current_user.id)
+        flash('Task completion submitted for approval!', 'info')
+    else:
+        task.mark_completed()
+        flash('Task marked as complete!', 'success')
+    
     return redirect(url_for('view_task', task_id=task.id))
 
 # Comment routes
@@ -848,6 +854,71 @@ def manage_skills():
     
     return render_template('settings/manage_skills.html', current_skills=current_skills)
 
+# Fix milestone routes
+@app.route('/projects/<int:project_id>/milestones', methods=['GET'])
+@login_required
+def project_milestones(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check access
+    accessible_projects = current_user.get_accessible_projects()
+    if project not in accessible_projects:
+        abort(403)
+    
+    milestones = Milestone.query.filter_by(project_id=project_id).order_by(Milestone.created_at).all()
+    
+    return render_template('projects/milestones.html', project=project, milestones=milestones)
+
+@app.route('/projects/<int:project_id>/milestones/create', methods=['GET', 'POST'])
+@login_required  
+def create_project_milestone(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form.get('description', '')
+        due_date_str = request.form.get('due_date')
+        
+        due_date = None
+        if due_date_str:
+            from datetime import datetime
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        
+        milestone = Milestone(
+            title=title,
+            description=description,
+            due_date=due_date,
+            project_id=project_id
+        )
+        
+        db.session.add(milestone)
+        db.session.commit()
+        
+        flash('Milestone created successfully!', 'success')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    return render_template('projects/create_milestone.html', project=project)
+
+@app.route('/milestones/<int:milestone_id>/complete', methods=['POST'])
+@login_required
+def complete_milestone_action(milestone_id):
+    milestone = Milestone.query.get_or_404(milestone_id)
+    
+    # Check access
+    accessible_projects = current_user.get_accessible_projects()
+    if milestone.project not in accessible_projects:
+        abort(403)
+    
+    milestone.status = 'Completed'
+    db.session.commit()
+    
+    flash('Milestone marked as complete!', 'success')
+    return redirect(request.referrer)
+
 @app.route('/settings/add-user', methods=['GET', 'POST'])
 @login_required
 def settings_add_user():
@@ -890,18 +961,7 @@ def settings_add_user():
     user_types = UserType.query.filter_by(is_active=True).all()
     return render_template('settings/add_user.html', managers=managers, user_types=user_types)
 
-@app.route('/projects/<int:project_id>/milestones')
-@login_required
-def project_milestones(project_id):
-    project = Project.query.get_or_404(project_id)
-    
-    # Check access
-    accessible_projects = current_user.get_accessible_projects()
-    if project not in accessible_projects:
-        abort(403)
-    
-    milestones = Milestone.query.filter_by(project_id=project_id).all()
-    return render_template('projects/milestones.html', project=project, milestones=milestones)
+
 
 @app.route('/projects/<int:project_id>/milestones/create', methods=['GET', 'POST'])
 @login_required
@@ -984,7 +1044,7 @@ def api_project_tasks(project_id):
         'project_deadline': project.deadline.strftime('%Y-%m-%d') if project.deadline else None
     }
 
-# New routes for outcomes and additional features
+# Routes for outcomes and additional features
 
 @app.route('/tasks/<int:task_id>/outcomes/create', methods=['POST'])
 @login_required

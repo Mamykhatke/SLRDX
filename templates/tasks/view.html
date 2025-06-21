@@ -195,4 +195,140 @@
         </div>
     </div>
 </div>
+
+<!-- Add Outcome Modal -->
+<div id="outcomeModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Outcome</h3>
+            <span class="close" onclick="hideAddOutcomeModal()">&times;</span>
+        </div>
+        <form method="POST" action="{{ url_for('create_outcome', task_id=task.id) }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Outcome Title</label>
+                    <input type="text" name="title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" class="form-control" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Add Outcome</button>
+                <button type="button" class="btn btn-secondary" onclick="hideAddOutcomeModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showAddOutcomeModal() {
+    document.getElementById('outcomeModal').style.display = 'block';
+}
+
+function hideAddOutcomeModal() {
+    document.getElementById('outcomeModal').style.display = 'none';
+}
+
+function markOutcomeComplete(outcomeId) {
+    if (confirm('Mark this outcome as complete?')) {
+        fetch(`/outcomes/${outcomeId}/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            }
+        });
+    }
+}
+
+function toggleDocumentComments(documentId) {
+    const commentsDiv = document.getElementById(`documentComments${documentId}`);
+    if (commentsDiv.style.display === 'none') {
+        commentsDiv.style.display = 'block';
+    } else {
+        commentsDiv.style.display = 'none';
+    }
+}
+</script>
+
+<style>
+.outcome-item {
+    display: flex;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.outcome-item:last-child {
+    border-bottom: none;
+}
+
+.outcome-status {
+    margin-right: 15px;
+    font-size: 1.2rem;
+}
+
+.outcome-info {
+    flex: 1;
+}
+
+.outcome-info h6 {
+    margin: 0 0 5px 0;
+    color: #2c3e50;
+}
+
+.outcome-info p {
+    margin: 0 0 5px 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 0;
+    border-radius: 8px;
+    width: 500px;
+    max-width: 90%;
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 20px;
+    border-top: 1px solid #e9ecef;
+    text-align: right;
+}
+
+.close {
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+</style>
 {% endblock %}
