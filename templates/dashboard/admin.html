@@ -116,10 +116,30 @@
                 
                 <div class="deadlines-list">
                     {% for task in upcoming_deadlines %}
-                    <div class="deadline-item">
+                    <div class="deadline-item clickable-deadline" onclick="navigateToTask({{ task.id }})">
+                        <div class="deadline-icon">
+                            {% if task.is_overdue() %}
+                            <i class="fas fa-exclamation-triangle text-danger"></i>
+                            {% else %}
+                            <i class="fas fa-clock text-warning"></i>
+                            {% endif %}
+                        </div>
+                        
                         <div class="deadline-info">
                             <h5>{{ task.title }}</h5>
-                            <p>{{ task.project.title }}</p>
+                            <p class="task-project">{{ task.project.title }}</p>
+                            
+                            <div class="assignee-info">
+                                {% if task.assigned_user %}
+                                <span class="assignee">
+                                    <i class="fas fa-user"></i> {{ task.assigned_user.username }}
+                                </span>
+                                {% else %}
+                                <span class="assignee unassigned">
+                                    <i class="fas fa-user-slash"></i> Unassigned
+                                </span>
+                                {% endif %}
+                            </div>
                             
                             <div class="deadline-meta">
                                 <span class="deadline-date">{{ task.deadline.strftime('%b %d, %Y') }}</span>
@@ -133,6 +153,7 @@
                                         <span class="badge bg-info">{{ days_remaining }} days</span>
                                     {% endif %}
                                 {% endif %}
+                                <span class="priority priority-{{ task.priority.lower() }}">{{ task.priority }}</span>
                             </div>
                         </div>
                     </div>
@@ -149,4 +170,280 @@
         </div>
     </div>
 </div>
+
+<!-- Task Detail Modal -->
+<div id="taskDetailModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Task Details</h3>
+            <span class="close" onclick="hideTaskModal()">&times;</span>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <!-- Content will be loaded dynamically -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="hideTaskModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.clickable-stat {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.clickable-stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.clickable-deadline {
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.clickable-deadline:hover {
+    background-color: var(--hover-bg, #f8f9fa);
+    transform: translateX(3px);
+}
+
+.deadline-item {
+    display: flex;
+    align-items: flex-start;
+    border-left: 3px solid transparent;
+}
+
+.deadline-item:hover {
+    border-left-color: #007bff;
+}
+
+.deadline-icon {
+    margin-right: 12px;
+    margin-top: 3px;
+    font-size: 1.1rem;
+}
+
+.deadline-info {
+    flex: 1;
+}
+
+.deadline-info h5 {
+    margin: 0 0 4px 0;
+    color: var(--text-primary, #2c3e50);
+    font-size: 0.95rem;
+}
+
+.task-project {
+    margin: 0 0 8px 0;
+    color: var(--text-muted, #6c757d);
+    font-size: 0.8rem;
+}
+
+.assignee-info {
+    margin: 6px 0;
+}
+
+.assignee {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #495057);
+}
+
+.assignee.unassigned {
+    color: var(--text-muted, #dc3545);
+}
+
+.deadline-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.deadline-date {
+    font-size: 0.75rem;
+    color: var(--text-muted, #6c757d);
+}
+
+.priority {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.priority-high {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.priority-medium {
+    background: #fff3e0;
+    color: #ef6c00;
+}
+
+.priority-low {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: var(--card-bg, white);
+    margin: 5% auto;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color, #e9ecef);
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color, #e9ecef);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.close {
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--text-muted, #aaa);
+}
+
+.close:hover {
+    color: var(--text-primary, #000);
+}
+
+.task-list-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color, #e9ecef);
+    cursor: pointer;
+}
+
+.task-list-item:hover {
+    background-color: var(--hover-bg, #f8f9fa);
+}
+
+.task-list-item:last-child {
+    border-bottom: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --card-bg: #2d3748;
+        --border-color: #4a5568;
+        --text-primary: #e2e8f0;
+        --text-secondary: #a0aec0;
+        --text-muted: #718096;
+        --hover-bg: #4a5568;
+    }
+}
+</style>
+
+<script>
+function navigateToTask(taskId) {
+    window.location.href = `/tasks/${taskId}`;
+}
+
+function showDetailModal(type) {
+    const modal = document.getElementById('taskDetailModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    
+    // Set title based on type
+    const titles = {
+        'completed_tasks': 'Completed Tasks',
+        'pending_tasks': 'Pending Tasks', 
+        'overdue_tasks': 'Overdue Tasks'
+    };
+    
+    modalTitle.textContent = titles[type] || 'Tasks';
+    modalBody.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Fetch task details
+    fetch(`/api/dashboard/${type}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.tasks && data.tasks.length > 0) {
+                modalBody.innerHTML = data.tasks.map(task => `
+                    <div class="task-list-item" onclick="navigateToTask(${task.id})">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6>${task.title}</h6>
+                                <small class="text-muted">${task.project_title}</small>
+                                <div class="mt-1">
+                                    <span class="badge badge-${task.priority.toLowerCase()}">${task.priority}</span>
+                                    <span class="badge badge-${task.status.toLowerCase().replace(' ', '-')}">${task.status}</span>
+                                    ${task.assigned_user ? `<small class="text-muted ml-2"><i class="fas fa-user"></i> ${task.assigned_user}</small>` : ''}
+                                </div>
+                            </div>
+                            <small class="text-muted">${task.deadline || 'No deadline'}</small>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                modalBody.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        <p>No ${type.replace('_', ' ')} found</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            modalBody.innerHTML = `
+                <div class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading tasks</p>
+                </div>
+            `;
+        });
+}
+
+function hideTaskModal() {
+    document.getElementById('taskDetailModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('taskDetailModal');
+    if (event.target == modal) {
+        hideTaskModal();
+    }
+}
+</script>
+
 {% endblock %}

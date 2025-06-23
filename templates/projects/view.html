@@ -244,6 +244,21 @@
                                 <i class="fas fa-download"></i>
                             </a>
                             {% endif %}
+                            
+                            <!-- Version History Button -->
+                            {% if document.versions|length > 0 %}
+                            <button class="btn btn-sm btn-outline-info" onclick="showVersionHistory({{ document.id }})">
+                                <i class="fas fa-history"></i> Versions
+                            </button>
+                            {% endif %}
+                            
+                            <!-- Upload New Version -->
+                            {% if current_user.has_permission('Proj doc', 'Edit') or current_user.role in ['Admin', 'Manager'] %}
+                            <button class="btn btn-sm btn-outline-warning" onclick="showUploadVersion({{ document.id }})">
+                                <i class="fas fa-upload"></i> New Version
+                            </button>
+                            {% endif %}
+                            
                             {% if current_user.has_permission('Proj Dis.', 'View') or current_user.role in ['Admin', 'Manager'] %}
                             <button class="btn btn-sm btn-outline-secondary" onclick="toggleDocumentComments({{ document.id }})">
                                 <i class="fas fa-comments"></i> {{ document.comments.count() }}
@@ -291,4 +306,293 @@
         </div>
     </div>
 </div>
+
+<!-- Document Version History Modal -->
+<div id="versionHistoryModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Version History</h3>
+            <span class="close" onclick="hideVersionModal()">&times;</span>
+        </div>
+        <div class="modal-body" id="versionHistoryContent">
+            <!-- Content loaded dynamically -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="hideVersionModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload New Version Modal -->
+<div id="uploadVersionModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Upload New Version</h3>
+            <span class="close" onclick="hideUploadVersionModal()">&times;</span>
+        </div>
+        <form id="uploadVersionForm" method="POST" enctype="multipart/form-data">
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label>Current Document:</label>
+                    <p id="currentDocumentName" class="text-muted"></p>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="newVersionFile">Select New Version:</label>
+                    <input type="file" class="form-control" id="newVersionFile" name="file" required>
+                </div>
+                <div class="form-group">
+                    <label for="versionNotes">Version Notes (optional):</label>
+                    <textarea name="version_notes" id="versionNotes" class="form-control" rows="3" placeholder="What changed in this version?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Upload Version</button>
+                <button type="button" class="btn btn-secondary" onclick="hideUploadVersionModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.document-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.document-actions .btn {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+}
+
+.version-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color, #e9ecef);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.version-item:last-child {
+    border-bottom: none;
+}
+
+.version-info h6 {
+    margin: 0 0 4px 0;
+    color: var(--text-primary, #2c3e50);
+}
+
+.version-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted, #6c757d);
+}
+
+.version-current {
+    background-color: var(--success-bg, #d4edda);
+    border-left: 4px solid #28a745;
+}
+
+.version-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1050;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: var(--card-bg, white);
+    margin: 5% auto;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color, #e9ecef);
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color, #e9ecef);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.close {
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--text-muted, #aaa);
+}
+
+.close:hover {
+    color: var(--text-primary, #000);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --card-bg: #2d3748;
+        --border-color: #4a5568;
+        --text-primary: #e2e8f0;
+        --text-secondary: #a0aec0;
+        --text-muted: #718096;
+        --success-bg: #2d5a3d;
+    }
+}
+</style>
+
+<script>
+function toggleDocumentComments(documentId) {
+    const commentsDiv = document.getElementById('documentComments' + documentId);
+    if (commentsDiv.style.display === 'none') {
+        commentsDiv.style.display = 'block';
+    } else {
+        commentsDiv.style.display = 'none';
+    }
+}
+
+function showVersionHistory(documentId) {
+    const modal = document.getElementById('versionHistoryModal');
+    const content = document.getElementById('versionHistoryContent');
+    
+    content.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading versions...</div>';
+    modal.style.display = 'block';
+    
+    fetch(`/api/documents/${documentId}/versions`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.versions && data.versions.length > 0) {
+                content.innerHTML = data.versions.map((version, index) => `
+                    <div class="version-item ${version.is_current ? 'version-current' : ''}">
+                        <div class="version-info">
+                            <h6>Version ${version.version_number} ${version.is_current ? '(Current)' : ''}</h6>
+                            <div class="version-meta">
+                                Uploaded by ${version.uploaded_by} on ${version.uploaded_at}
+                                ${version.notes ? '<br><em>' + version.notes + '</em>' : ''}
+                            </div>
+                        </div>
+                        <div class="version-actions">
+                            <a href="/documents/${documentId}/versions/${version.id}/download" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i> Download
+                            </a>
+                            ${!version.is_current ? `<button class="btn btn-sm btn-outline-success" onclick="makeCurrentVersion(${documentId}, ${version.id})">Make Current</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                content.innerHTML = '<div class="text-center text-muted"><p>No version history available</p></div>';
+            }
+        })
+        .catch(error => {
+            content.innerHTML = '<div class="text-center text-danger"><p>Error loading version history</p></div>';
+        });
+}
+
+function showUploadVersion(documentId) {
+    const modal = document.getElementById('uploadVersionModal');
+    const form = document.getElementById('uploadVersionForm');
+    const docName = document.getElementById('currentDocumentName');
+    
+    // Get document name from the page
+    const documentItem = document.querySelector(`[data-document-id="${documentId}"]`);
+    if (documentItem) {
+        const nameElement = documentItem.querySelector('.document-name');
+        docName.textContent = nameElement ? nameElement.textContent : 'Unknown Document';
+    }
+    
+    form.action = `/documents/${documentId}/upload-version`;
+    modal.style.display = 'block';
+}
+
+function hideVersionModal() {
+    document.getElementById('versionHistoryModal').style.display = 'none';
+}
+
+function hideUploadVersionModal() {
+    document.getElementById('uploadVersionModal').style.display = 'none';
+    document.getElementById('uploadVersionForm').reset();
+}
+
+function makeCurrentVersion(documentId, versionId) {
+    if (confirm('Make this version the current version? This will replace the current file.')) {
+        fetch(`/documents/${documentId}/versions/${versionId}/make-current`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        }).then(response => {
+            if (response.ok) {
+                hideVersionModal();
+                location.reload();
+            } else {
+                alert('Error making version current. Please try again.');
+            }
+        });
+    }
+}
+
+// Handle upload version form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.getElementById('uploadVersionForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                if (response.ok) {
+                    hideUploadVersionModal();
+                    location.reload();
+                } else {
+                    alert('Error uploading new version. Please try again.');
+                }
+            }).catch(error => {
+                alert('Network error. Please try again.');
+            });
+        });
+    }
+    
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+        const versionModal = document.getElementById('versionHistoryModal');
+        const uploadModal = document.getElementById('uploadVersionModal');
+        
+        if (event.target == versionModal) {
+            hideVersionModal();
+        }
+        if (event.target == uploadModal) {
+            hideUploadVersionModal();
+        }
+    }
+});
+</script>
+
 {% endblock %}

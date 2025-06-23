@@ -871,7 +871,7 @@ def project_milestones(project_id):
 
 @app.route('/projects/<int:project_id>/milestones/create', methods=['GET', 'POST'])
 @login_required  
-def create_project_milestone(project_id):
+def create_milestone(project_id):
     project = Project.query.get_or_404(project_id)
     
     # Check permissions
@@ -961,36 +961,35 @@ def settings_add_user():
     user_types = UserType.query.filter_by(is_active=True).all()
     return render_template('settings/add_user.html', managers=managers, user_types=user_types)
 
-
-
-@app.route('/projects/<int:project_id>/milestones/create', methods=['GET', 'POST'])
+@app.route('/api/dashboard/<task_type>')
 @login_required
-def create_milestone(project_id):
-    project = Project.query.get_or_404(project_id)
+def api_dashboard_tasks(task_type):
+    """API endpoint for dashboard task modals"""
+    from datetime import date
     
-    # Check permissions
-    if not current_user.has_permission('Proj', 'Add') and current_user.role not in ['Admin', 'Manager']:
-        abort(403)
+    if task_type == 'completed_tasks':
+        tasks = Task.query.filter_by(status='Completed').order_by(Task.completed_at.desc()).limit(50).all()
+    elif task_type == 'pending_tasks':
+        tasks = Task.query.filter(Task.status.in_(['Pending', 'In Progress'])).order_by(Task.created_at.desc()).limit(50).all()
+    elif task_type == 'overdue_tasks':
+        today = date.today()
+        tasks = Task.query.filter(Task.deadline < today, Task.status != 'Completed').order_by(Task.deadline).limit(50).all()
+    else:
+        tasks = []
     
-    if request.method == 'POST':
-        title = request.form['title']
-        description = request.form.get('description', '')
-        due_date = request.form.get('due_date')
-        
-        milestone = Milestone(
-            title=title,
-            description=description,
-            due_date=datetime.strptime(due_date, '%Y-%m-%d').date() if due_date else None,
-            project_id=project_id
-        )
-        
-        db.session.add(milestone)
-        db.session.commit()
-        
-        flash('Milestone created successfully!', 'success')
-        return redirect(url_for('project_milestones', project_id=project_id))
+    task_data = []
+    for task in tasks:
+        task_data.append({
+            'id': task.id,
+            'title': task.title,
+            'project_title': task.project.title,
+            'priority': task.priority,
+            'status': task.status,
+            'assigned_user': task.assigned_user.username if task.assigned_user else None,
+            'deadline': task.deadline.strftime('%b %d, %Y') if task.deadline else None
+        })
     
-    return render_template('projects/create_milestone.html', project=project)
+    return {'tasks': task_data}
 
 @app.route('/documents/<int:document_id>/comments', methods=['POST'])
 @login_required
