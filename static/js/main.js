@@ -17,6 +17,9 @@ function initializeSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
     
+    // Only initialize if sidebar exists
+    if (!sidebar) return;
+    
     // Mobile sidebar toggle
     const toggleButton = document.querySelector('[data-sidebar-toggle]');
     if (toggleButton) {
@@ -28,6 +31,7 @@ function initializeSidebar() {
     // Close sidebar when clicking outside on mobile
     document.addEventListener('click', function(e) {
         if (window.innerWidth <= 768 && 
+            sidebar && 
             !sidebar.contains(e.target) && 
             !e.target.closest('[data-sidebar-toggle]')) {
             sidebar.classList.remove('show');
