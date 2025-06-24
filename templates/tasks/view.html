@@ -183,9 +183,13 @@
                             <p class="text-muted">Track deliverables and measurable results</p>
                         </div>
                         {% if current_user.role in ['Admin', 'Manager'] or task.assigned_to_id == current_user.id %}
-                        <a href="{{ url_for('create_outcome', task_id=task.id) }}" class="btn btn-primary">
+                        <button type="button" class="btn btn-primary" onclick="showAddOutcomeModal()">
                             <i class="fas fa-plus"></i> Add Outcome
-                        </a>
+                        </button>
+                        {% else %}
+                        <button type="button" class="btn btn-outline-secondary" onclick="showPermissionDenied()">
+                            <i class="fas fa-plus"></i> Add Outcome
+                        </button>
                         {% endif %}
                     </div>
                 </div>
@@ -299,9 +303,9 @@
                         <h5>No Outcomes Yet</h5>
                         <p>Add outcomes to track task deliverables and achievements.</p>
                         {% if current_user.role in ['Admin', 'Manager'] or task.assigned_to_id == current_user.id %}
-                        <a href="{{ url_for('create_outcome', task_id=task.id) }}" class="btn btn-primary">
+                        <button type="button" class="btn btn-primary" onclick="showAddOutcomeModal()">
                             <i class="fas fa-plus"></i> Add First Outcome
-                        </a>
+                        </button>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -718,6 +722,56 @@ function toggleDocumentComments(documentId) {
     } else {
         commentsDiv.style.display = 'none';
     }
+}
+
+function showAddOutcomeModal() {
+    document.getElementById('outcomeModal').style.display = 'block';
+}
+
+function hideAddOutcomeModal() {
+    document.getElementById('outcomeModal').style.display = 'none';
+}
+
+function showPermissionDenied() {
+    alert('You have no permission to do that');
+}
+
+function loadTeamMembers() {
+    fetch('/api/team_members')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('new_assignee_id');
+            select.innerHTML = '<option value="">Select team member...</option>';
+            data.team_members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = `${member.username} (${member.role})`;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading team members:', error));
+}
+
+// Load team members when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadTeamMembers();
+});
+
+function showReassignModal() {
+    document.getElementById('reassignModal').style.display = 'block';
+    loadTeamMembers(); // Refresh team members list
+}
+
+function hideReassignModal() {
+    document.getElementById('reassignModal').style.display = 'none';
+}
+
+function showAddDependencyModal() {
+    document.getElementById('addDependencyModal').style.display = 'block';
+}
+
+function hideAddDependencyModal() {
+    document.getElementById('addDependencyModal').style.display = 'none';
 }
 </script>
 

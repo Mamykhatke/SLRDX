@@ -1164,3 +1164,61 @@ def approve_project(project_id):
             current_skills = []
     
     return render_template('profile/skills.html', current_skills=current_skills)
+
+@app.route('/tasks/<int:task_id>/add_manual_dependency', methods=['POST'])
+@login_required
+def add_manual_dependency(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    # Check permissions
+    if current_user.role not in ['Admin', 'Manager']:
+        abort(403)
+    
+    dependency_type = request.form.get('dependency_type')
+    
+    if dependency_type == 'task':
+        dependency_task_id = request.form.get('dependency_task_id')
+        if dependency_task_id:
+            dependency_task = Task.query.get(dependency_task_id)
+            if dependency_task:
+                task_dep = TaskDependency(
+                    task_id=task_id,
+                    depends_on_task_id=dependency_task_id
+                )
+                db.session.add(task_dep)
+                db.session.commit()
+                flash('Task dependency added successfully!', 'success')
+    elif dependency_type == 'manual':
+        manual_dependency = request.form.get('manual_dependency')
+        if manual_dependency:
+            task_dep = TaskDependency(
+                task_id=task_id,
+                manual_dependency=manual_dependency
+            )
+            db.session.add(task_dep)
+            db.session.commit()
+            flash('Manual dependency added successfully!', 'success')
+    
+    return redirect(url_for('view_task', task_id=task_id))
+
+@app.route('/api/team_members')
+@login_required
+def api_team_members():
+    """API endpoint to get team members for dropdowns"""
+    if current_user.role == 'Admin':
+        users = User.query.filter(User.id != current_user.id).all()
+    elif current_user.role == 'Manager':
+        # Manager can reassign to their managed users and other managers
+        managed_user_ids = [u.id for u in current_user.managed_users]
+        users = User.query.filter(
+            db.or_(
+                User.id.in_(managed_user_ids),
+                User.role == 'Manager'
+            ),
+            User.id != current_user.id
+        ).all()
+    else:
+        users = []
+    
+    team_data = [{'id': user.id, 'username': user.username, 'role': user.role} for user in users]
+    return {'team_members': team_data}

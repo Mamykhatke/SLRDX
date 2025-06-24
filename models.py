@@ -258,6 +258,7 @@ class DocumentVersion(db.Model):
     document = db.relationship('Document', backref='versions')
     uploaded_by = db.relationship('User', backref='uploaded_versions')
 
+
 # Association table for project assignments
 project_assignments = db.Table('project_assignments',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
